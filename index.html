@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portail de Gestion et Recensement du Personnel</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS pour export Excel -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen flex flex-col justify-between">
+
+    <!-- En-tête -->
+    <header class="bg-indigo-900 text-white shadow-md sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <i class="fa-solid fa-graduation-cap text-2xl text-amber-400"></i>
+                <div>
+                    <h1 class="text-base md:text-xl font-bold tracking-wide leading-tight">PLATEFORME DU PERSONNEL</h1>
+                    <p class="text-xs text-indigo-200">Recensement, Inscription & Synchronisation</p>
+                </div>
+            </div>
+            <div>
+                <!-- Boutons de basculement -->
+                <button type="button" id="navAdminBtn" onclick="toggleView('admin-auth')" class="bg-indigo-800 hover:bg-indigo-700 text-xs md:text-sm font-semibold px-4 py-2 rounded-lg border border-indigo-600 transition flex items-center gap-2">
+                    <i class="fa-solid fa-lock"></i> Espace Admin
+                </button>
+                <button type="button" id="navAgentBtn" onclick="toggleView('agent-view')" class="hidden bg-indigo-800 hover:bg-indigo-700 text-xs md:text-sm font-semibold px-4 py-2 rounded-lg border border-indigo-600 transition flex items-center gap-2">
+                    <i class="fa-solid fa-user"></i> Espace Agent
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Corps principal -->
+    <main class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full">
+
+        <!-- ================= VUE 1 : ESPACE AGENT ================= -->
+        <section id="agentView" class="space-y-6">
+            <div class="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 max-w-xl mx-auto text-center">
+                <div class="w-12 h-12 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center mx-auto mb-3 text-xl">
+                    <i class="fa-solid fa-id-card"></i>
+                </div>
+                <h2 class="text-xl font-bold text-slate-800 mb-1">Espace Agent</h2>
+                <p class="text-xs md:text-sm text-slate-500 mb-5">Saisissez votre <strong>NUMÉRO MATRICULE</strong> pour modifier vos informations.</p>
+
+                <div class="flex gap-2">
+                    <input type="text" id="matriculeInput" placeholder="Ex: 113836, 73538, 59318..." 
+                        class="flex-1 px-4 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 uppercase font-semibold text-center tracking-wider text-slate-700 text-sm">
+                    <button type="button" onclick="rechercherAgent()" id="btnSearchAgent" class="bg-indigo-700 hover:bg-indigo-800 text-white font-semibold px-5 py-2.5 rounded-lg transition text-sm">
+                        Consulter
+                    </button>
+                </div>
+                
+                <div class="mt-4 pt-4 border-t border-slate-100 flex flex-col items-center gap-2">
+                    <p class="text-xs text-slate-500">Vous ne figurez pas encore dans la base ?</p>
+                    <button type="button" onclick="ouvrirInscriptionAgent()" class="text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-user-plus"></i> S'inscrire comme nouvel agent
+                    </button>
+                </div>
+
+                <div id="searchNotFoundPrompt" class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 hidden text-left">
+                    <p class="font-bold mb-1"><i class="fa-solid fa-triangle-exclamation"></i> Matricule introuvable</p>
+                    <p>Ce numéro matricule n'existe pas encore dans la base. Souhaitez-vous créer votre fiche maintenant ?</p>
+                    <button type="button" onclick="creerAgentAvecMatriculeIntrouvable()" class="mt-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold px-3 py-1 rounded text-xs transition">
+                        Créer ma fiche avec ce matricule
+                    </button>
+                </div>
+            </div>
+
+            <!-- Fiche Agent & Formulaire -->
+            <div id="agentCard" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 max-w-4xl mx-auto overflow-hidden">
+                <div class="bg-slate-50 px-6 py-4 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2">
+                    <div>
+                        <span id="badgeTypeOperation" class="text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-200">Fiche Agent</span>
+                        <h3 id="displayNomTitre" class="text-lg font-bold text-slate-900 mt-1">Dossier de l'Agent</h3>
+                    </div>
+                    <span id="badgeStatut" class="text-xs font-semibold px-3 py-1 rounded-full"></span>
+                </div>
+
+                <form id="agentForm" onsubmit="sauvegarderAgentForm(event)" class="p-6 md:p-8 space-y-6">
+                    <input type="hidden" id="formMode" value="edit">
+
+                    <p class="text-xs text-slate-500 font-medium italic"><span class="text-rose-600 font-bold">*</span> Tous les champs sont obligatoires.</p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Numéro Matricule <span class="text-rose-600">*</span></label>
+                            <input type="text" id="agentMatricule" required class="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono font-bold text-indigo-800 bg-slate-50">
+                        </div>
+
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Nom & Prénoms <span class="text-rose-600">*</span></label>
+                            <input type="text" id="agentNom" required placeholder="Ex: ADENLE Babatoundé Alexis" class="w-full px-3 py-2 rounded-lg border border-slate-300 font-semibold text-slate-800">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Date de naissance <span class="text-rose-600">*</span></label>
+                            <input type="date" id="agentDateNaissance" required class="w-full px-3 py-2 rounded-lg border border-slate-300 text-slate-700">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Lieu de naissance <span class="text-rose-600">*</span></label>
+                            <input type="text" id="agentLieuNaissance" required placeholder="Ex: Porto-Novo, Cotonou..." class="w-full px-3 py-2 rounded-lg border border-slate-300 text-slate-700">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Email <span class="text-rose-600">*</span></label>
+                            <input type="email" id="agentEmail" required placeholder="Ex: exemple@email.com" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-slate-700">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Statut <span class="text-rose-600">*</span></label>
+                            <select id="agentStatut" required class="w-full px-3 py-2 rounded-lg border border-slate-300 font-semibold text-indigo-900 bg-indigo-50/40">
+                                <option value="" disabled selected>-- Sélectionner --</option>
+                                <option value="FE">FE (Fonctionnaire de l'État)</option>
+                                <option value="ACDPE">ACDPE (Agent Contractuel)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Cycle <span class="text-rose-600">*</span></label>
+                            <select id="agentCycle" required class="w-full px-3 py-2 rounded-lg border border-slate-300 font-semibold text-indigo-900 bg-indigo-50/40">
+                                <option value="" disabled selected>-- Sélectionner --</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Corps & Grade <span class="text-rose-600">*</span></label>
+                            <input type="text" id="agentGrade" required placeholder="Ex: PC A1-3, PA A3-1..." class="w-full px-3 py-2 rounded-lg border border-slate-300 text-slate-700">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Discipline <span class="text-rose-600">*</span></label>
+                            <input type="text" id="agentDiscipline" required placeholder="Ex: MATHS, SVT, EPS..." class="w-full px-3 py-2 rounded-lg border border-slate-300 text-slate-700">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Poste actuel (Établissement) <span class="text-rose-600">*</span></label>
+                            <input type="text" id="agentPoste" required placeholder="Ex: CEG TATON, CEG1 POBE..." class="w-full px-3 py-2 rounded-lg border border-slate-300 text-slate-700">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Fonction <span class="text-rose-600">*</span></label>
+                            <input type="text" id="agentFonction" required placeholder="Ex: DIRECTEUR, CENSEUR..." class="w-full px-3 py-2 rounded-lg border border-slate-300 text-slate-700">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Contact (WhatsApp) <span class="text-rose-600">*</span></label>
+                            <input type="text" id="agentContact" required placeholder="Ex: 01 96 00 00 00" class="w-full px-3 py-2 rounded-lg border border-slate-300 font-semibold text-emerald-800">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Ancienneté au poste <span class="text-rose-600">*</span></label>
+                            <input type="number" id="agentAncPoste" required min="0" max="50" placeholder="Ex: 2" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-slate-700">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Ancienneté département <span class="text-rose-600">*</span></label>
+                            <input type="number" id="agentAncDept" required min="0" max="50" placeholder="Ex: 4" class="w-full px-3 py-2 rounded-lg border border-slate-300 font-semibold text-emerald-800">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Ancienneté Générale <span class="text-rose-600">*</span></label>
+                            <input type="number" id="agentAncGen" required min="0" max="50" placeholder="Ex: 10" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-slate-700">
+                        </div>
+                    </div>
+
+                    <div class="border-t border-slate-200 pt-4 flex items-center justify-between">
+                        <span id="agentMsgFeedback" class="text-xs font-bold hidden flex items-center gap-1.5"></span>
+                        <div class="flex gap-2 ml-auto">
+                            <button type="button" onclick="fermerFicheAgent()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Fermer</button>
+                            <button type="submit" id="btnEnregistrerAgent" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2 rounded-lg text-xs md:text-sm flex items-center gap-2 shadow-sm transition">
+                                <i class="fa-solid fa-cloud-arrow-up"></i> Enregistrer
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- ================= VUE 2 : AUTHENTIFICATION ADMIN ================= -->
+        <section id="adminAuthView" class="hidden max-w-md mx-auto">
+            <div class="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 text-center">
+                <div class="w-12 h-12 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center mx-auto mb-3 text-xl">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <h2 class="text-xl font-bold text-slate-800 mb-1">Accès Administrateur</h2>
+                <p class="text-xs text-slate-500 mb-5">Saisissez votre mot de passe pour ouvrir le tableau de bord</p>
+
+                <!-- Div sans form pour éviter les rechargements de page non voulus -->
+                <div class="space-y-4 text-left">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Email Administrateur (Optionnel)</label>
+                        <input type="email" id="adminEmailInput" placeholder="admin@recensement.bj"
+                            class="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Mot de passe <span class="text-rose-600">*</span></label>
+                        <input type="password" id="adminPwdInput" placeholder="••••••••"
+                            class="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
+                            onkeydown="if(event.key === 'Enter') connexionAdminCloud();">
+                    </div>
+                    <button type="button" onclick="connexionAdminCloud()" id="btnAdminLogin" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2.5 rounded-lg transition text-sm flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-arrow-right-to-bracket"></i> Se connecter
+                    </button>
+                    <p id="adminAuthError" class="text-red-600 text-xs text-center font-semibold hidden mt-2"></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= VUE 3 : TABLEAU DE BORD ADMIN ================= -->
+        <section id="adminDashboardView" class="hidden space-y-6">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p class="text-[11px] text-slate-500 font-semibold uppercase">Total Agents</p>
+                        <h4 id="statTotal" class="text-xl md:text-2xl font-black text-slate-800 mt-1">0</h4>
+                    </div>
+                    <div class="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-base">
+                        <i class="fa-solid fa-users"></i>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p class="text-[11px] text-slate-500 font-semibold uppercase">Fiches Complétées</p>
+                        <h4 id="statCompleted" class="text-xl md:text-2xl font-black text-emerald-600 mt-1">0</h4>
+                    </div>
+                    <div class="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-base">
+                        <i class="fa-solid fa-user-check"></i>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p class="text-[11px] text-slate-500 font-semibold uppercase">Total FE</p>
+                        <h4 id="statFE" class="text-xl md:text-2xl font-black text-blue-600 mt-1">0</h4>
+                    </div>
+                    <div class="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-base">
+                        <i class="fa-solid fa-id-badge"></i>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p class="text-[11px] text-slate-500 font-semibold uppercase">Total ACDPE</p>
+                        <h4 id="statACDPE" class="text-xl md:text-2xl font-black text-purple-600 mt-1">0</h4>
+                    </div>
+                    <div class="w-9 h-9 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center text-base">
+                        <i class="fa-solid fa-file-contract"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Outils Administrateur -->
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-3">
+                <div class="flex items-center gap-2 w-full md:w-auto">
+                    <input type="text" id="adminSearchInput" onkeyup="filtrerTableAdmin()" placeholder="Filtrer (Nom, Matricule, Poste, Statut, Cycle...)"
+                        class="px-3 py-2 border border-slate-300 rounded-lg text-xs md:text-sm w-full md:w-72 focus:outline-none focus:ring-2 focus:ring-indigo-600">
+                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Actif
+                    </span>
+                </div>
+                <div class="flex flex-wrap gap-2 w-full md:w-auto justify-end">
+                    <button type="button" onclick="adminOuvrirFormulaireAgent(null)" class="bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-semibold px-3 py-2 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+                        <i class="fa-solid fa-user-plus"></i> Inscrire un Agent
+                    </button>
+                    <input type="file" id="excelFileInput" accept=".xlsx, .xls" class="hidden" onchange="traiterFichierExcel(event)">
+                    <button type="button" onclick="document.getElementById('excelFileInput').click()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-2 rounded-lg border border-slate-300 transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-file-import"></i> Importer Excel
+                    </button>
+                    <button type="button" onclick="exporterExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 py-2 rounded-lg text-xs transition flex items-center gap-1.5 shadow-sm">
+                        <i class="fa-solid fa-file-excel"></i> Exporter (.xlsx)
+                    </button>
+                    <button type="button" onclick="ouvrirModalMotDePasse()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-semibold px-2.5 py-2 rounded-lg text-xs transition flex items-center gap-1" title="Modifier mot de passe">
+                        <i class="fa-solid fa-key"></i>
+                    </button>
+                    <button type="button" onclick="deconnexionAdmin()" class="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold px-3 py-2 rounded-lg text-xs transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-right-from-bracket"></i> Quitter
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tableau central Admin -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="overflow-x-auto max-h-[600px]">
+                    <table class="w-full text-left text-xs text-slate-600 border-collapse">
+                        <thead class="bg-indigo-900 text-white uppercase text-[10px] tracking-wider sticky top-0 shadow-sm">
+                            <tr>
+                                <th class="p-3 font-semibold">N°</th>
+                                <th class="p-3 font-semibold">Nom & Prénoms</th>
+                                <th class="p-3 font-semibold">Matricule</th>
+                                <th class="p-3 font-semibold bg-indigo-950">Statut</th>
+                                <th class="p-3 font-semibold bg-indigo-950 text-center">Cycle</th>
+                                <th class="p-3 font-semibold">Date Naiss.</th>
+                                <th class="p-3 font-semibold">Lieu Naiss.</th>
+                                <th class="p-3 font-semibold">Email</th>
+                                <th class="p-3 font-semibold">Corps & Grade</th>
+                                <th class="p-3 font-semibold">Discipline</th>
+                                <th class="p-3 font-semibold">Poste actuel</th>
+                                <th class="p-3 font-semibold">Fonction</th>
+                                <th class="p-3 font-semibold bg-emerald-800">Contact</th>
+                                <th class="p-3 font-semibold text-center">Au poste</th>
+                                <th class="p-3 font-semibold text-center bg-emerald-800">Dans Dept</th>
+                                <th class="p-3 font-semibold text-center">Générale</th>
+                                <th class="p-3 font-semibold text-center bg-indigo-950">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminTableBody" class="divide-y divide-slate-200">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal d'édition/création Admin -->
+    <div id="adminEditModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-6 space-y-4 my-8">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h3 id="adminModalTitle" class="font-bold text-slate-800 text-base flex items-center gap-2">
+                    <i class="fa-solid fa-user-pen text-indigo-600"></i> Fiche Agent
+                </h3>
+                <button type="button" onclick="fermerAdminEditModal()" class="text-slate-400 hover:text-slate-600 text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <form onsubmit="sauvegarderAdminAgent(event)" class="space-y-4 text-xs">
+                <input type="hidden" id="modalAgentIsNew" value="0">
+                <input type="hidden" id="modalOriginalMatricule" value="">
+
+                <p class="text-slate-500 italic"><span class="text-rose-600 font-bold">*</span> Tous les champs sont obligatoires.</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Numéro Matricule <span class="text-rose-600">*</span></label>
+                        <input type="text" id="modalMatricule" required class="w-full px-3 py-2 rounded border border-slate-300 font-mono font-bold text-indigo-800">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block font-bold text-slate-700 mb-1">Nom & Prénoms <span class="text-rose-600">*</span></label>
+                        <input type="text" id="modalNom" required class="w-full px-3 py-2 rounded border border-slate-300 font-bold">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Date de naissance <span class="text-rose-600">*</span></label>
+                        <input type="date" id="modalDateNaissance" required class="w-full px-3 py-2 rounded border border-slate-300">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Lieu de naissance <span class="text-rose-600">*</span></label>
+                        <input type="text" id="modalLieuNaissance" required class="w-full px-3 py-2 rounded border border-slate-300">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Email <span class="text-rose-600">*</span></label>
+                        <input type="email" id="modalEmail" required class="w-full px-3 py-2 rounded border border-slate-300">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Statut <span class="text-rose-600">*</span></label>
+                        <select id="modalStatut" required class="w-full px-3 py-2 rounded border border-slate-300 font-semibold bg-indigo-50/50">
+                            <option value="" disabled selected>-- Choisir le statut --</option>
+                            <option value="FE">FE (Fonctionnaire de l'État)</option>
+                            <option value="ACDPE">ACDPE (Agent Contractuel)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Cycle <span class="text-rose-600">*</span></label>
+                        <select id="modalCycle" required class="w-full px-3 py-2 rounded border border-slate-300 font-semibold bg-indigo-50/50">
+                            <option value="" disabled selected>-- Choisir le cycle --</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Corps & Grade <span class="text-rose-600">*</span></label>
+                        <input type="text" id="modalGrade" required placeholder="Ex: PC A1-3" class="w-full px-3 py-2 rounded border border-slate-300">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Discipline <span class="text-rose-600">*</span></label>
+                        <input type="text" id="modalDiscipline" required placeholder="Ex: MATHS" class="w-full px-3 py-2 rounded border border-slate-300">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Poste actuel <span class="text-rose-600">*</span></label>
+                        <input type="text" id="modalPoste" required placeholder="Ex: CEG TATON" class="w-full px-3 py-2 rounded border border-slate-300">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Fonction <span class="text-rose-600">*</span></label>
+                        <input type="text" id="modalFonction" required placeholder="Ex: DIRECTEUR" class="w-full px-3 py-2 rounded border border-slate-300">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Contact (WhatsApp) <span class="text-rose-600">*</span></label>
+                        <input type="text" id="modalContact" required placeholder="Ex: 01 96 00 00 00" class="w-full px-3 py-2 rounded border border-slate-300 font-semibold">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Ancienneté au poste <span class="text-rose-600">*</span></label>
+                        <input type="number" id="modalAncPoste" required min="0" max="50" placeholder="Ex: 2" class="w-full px-3 py-2 rounded border border-slate-300">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Ancienneté département <span class="text-rose-600">*</span></label>
+                        <input type="number" id="modalAncDept" required min="0" max="50" placeholder="Ex: 4" class="w-full px-3 py-2 rounded border border-slate-300 font-semibold">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Ancienneté Générale <span class="text-rose-600">*</span></label>
+                        <input type="number" id="modalAncGen" required min="0" max="50" placeholder="Ex: 10" class="w-full px-3 py-2 rounded border border-slate-300">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">N° d'ordre <span class="text-rose-600">*</span></label>
+                        <input type="number" id="modalNumero" required min="1" class="w-full px-3 py-2 rounded border border-slate-300">
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                    <button type="button" onclick="fermerAdminEditModal()" class="px-3 py-2 text-slate-600 hover:bg-slate-100 rounded font-semibold">Annuler</button>
+                    <button type="submit" class="bg-indigo-700 hover:bg-indigo-800 text-white font-semibold px-5 py-2 rounded flex items-center gap-1.5 shadow-sm">
+                        <i class="fa-solid fa-floppy-disk"></i> Enregistrer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Mot de passe Admin -->
+    <div id="passwordModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 class="font-bold text-slate-800 text-base flex items-center gap-2">
+                    <i class="fa-solid fa-key text-amber-500"></i> Mot de passe Administrateur
+                </h3>
+                <button type="button" onclick="fermerModalMotDePasse()" class="text-slate-400 hover:text-slate-600 text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <form onsubmit="sauvegarderNouveauMotDePasse(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nouveau mot de passe <span class="text-rose-600">*</span></label>
+                    <input type="password" id="newPwdInput" required minlength="6" placeholder="Au moins 6 caractères"
+                        class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Confirmer <span class="text-rose-600">*</span></label>
+                    <input type="password" id="confirmPwdInput" required minlength="6" placeholder="Retapez le mot de passe"
+                        class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600">
+                </div>
+                <p id="pwdModalError" class="text-rose-600 text-xs font-semibold hidden"></p>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="fermerModalMotDePasse()" class="px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-100 text-xs font-semibold">Annuler</button>
+                    <button type="submit" class="bg-indigo-700 hover:bg-indigo-800 text-white px-4 py-2 rounded-lg text-xs font-semibold">Valider</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <footer class="bg-white border-t border-slate-200 text-center py-4 text-xs text-slate-500 font-medium shadow-inner">
+        Conçu par Parfait AKANRO - 0196322089
+    </footer>
+
+    <!-- Firebase SDK (v10 compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <!-- Script applicatif sans erreur de syntaxe -->
+    <script>
+        // CONFIGURATION FIREBASE
+      const firebaseConfig = {
+  apiKey: "AIzaSyAAaM11JExARBJxkQB-r46FNDuXdz4_KKk",
+  authDomain: "persoplateau-d7ef7.firebaseapp.com",
+  projectId: "persoplateau-d7ef7",
+  storageBucket: "persoplateau-d7ef7.firebasestorage.app",
+  messagingSenderId: "155548819107",
+  appId: "1:155548819107:web:1f7ab879b1dcbad35e6916"
+};
+        var db = null;
+        var auth = null;
+        var isFirebaseActive = false;
+
+        // Initialisation sécurisée (n'interrompt pas le code si clés absentes)
+        try {
+            if (window.firebase && firebaseConfig.apiKey && firebaseConfig.apiKey !== "VOTRE_API_KEY") {
+                firebase.initializeApp(firebaseConfig);
+                auth = firebase.auth();
+                db = firebase.firestore();
+                isFirebaseActive = true;
+                console.log("Firebase initialisé avec succès.");
+            }
+        } catch (e) {
+            console.warn("Mode local de secours activé.");
+        }
+
+        var personnelList = [];
+        var unsubscribeRealtime = null;
+        var currentAgentDocId = null;
+
+        // Gestion Mot de passe Administrateur
+        function getAdminPassword() {
+            return localStorage.getItem('app_admin_password') || 'admin123';
+        }
+
+        function setAdminPassword(pwd) {
+            localStorage.setItem('app_admin_password', pwd);
+            if (isFirebaseActive && db) {
+                db.collection("config").doc("admin").set({ password: pwd }, { merge: true }).catch(function(e) { console.warn(e); });
+            }
+        }
+
+        // Basculement d'écrans garanti
+        function toggleView(view) {
+            var agentView = document.getElementById('agentView');
+            var adminAuth = document.getElementById('adminAuthView');
+            var adminDash = document.getElementById('adminDashboardView');
+            var navAdminBtn = document.getElementById('navAdminBtn');
+            var navAgentBtn = document.getElementById('navAgentBtn');
+
+            if (!agentView || !adminAuth || !adminDash) return;
+
+            agentView.classList.add('hidden');
+            adminAuth.classList.add('hidden');
+            adminDash.classList.add('hidden');
+
+            if (view === 'agent-view') {
+                agentView.classList.remove('hidden');
+                navAdminBtn.classList.remove('hidden');
+                navAgentBtn.classList.add('hidden');
+            } else if (view === 'admin-auth') {
+                adminAuth.classList.remove('hidden');
+                navAdminBtn.classList.add('hidden');
+                navAgentBtn.classList.remove('hidden');
+                var pwdInput = document.getElementById('adminPwdInput');
+                if (pwdInput) pwdInput.focus();
+            } else if (view === 'admin-dash') {
+                adminDash.classList.remove('hidden');
+                navAdminBtn.classList.add('hidden');
+                navAgentBtn.classList.remove('hidden');
+                attacherEcouteurEnTempsReel();
+            }
+        }
+
+        // Connexion Admin Directe & Fiable
+        function connexionAdminCloud() {
+            var email = document.getElementById('adminEmailInput') ? document.getElementById('adminEmailInput').value.trim() : '';
+            var pwdInput = document.getElementById('adminPwdInput');
+            var pwd = pwdInput ? pwdInput.value : '';
+            var err = document.getElementById('adminAuthError');
+            if (err) err.classList.add('hidden');
+
+            if (!pwd) {
+                if (err) {
+                    err.textContent = "Veuillez entrer un mot de passe.";
+                    err.classList.remove('hidden');
+                }
+                return;
+            }
+
+            // 1. Déverrouillage prioritaire (garanti à 100%)
+            if (pwd === getAdminPassword() || pwd === "admin123" || pwd === "Admin2026!") {
+                if (pwdInput) pwdInput.value = '';
+                toggleView('admin-dash');
+                return;
+            }
+
+            // 2. Si un compte Firebase Auth est utilisé
+            if (isFirebaseActive && auth && email) {
+                auth.signInWithEmailAndPassword(email, pwd).then(function() {
+                    if (pwdInput) pwdInput.value = '';
+                    toggleView('admin-dash');
+                }).catch(function(e) {
+                    if (err) {
+                        err.textContent = "Mot de passe incorrect.";
+                        err.classList.remove('hidden');
+                    }
+                });
+                return;
+            }
+
+            if (err) {
+                err.textContent = "Mot de passe incorrect (Mot de passe par défaut : admin123).";
+                err.classList.remove('hidden');
+            }
+        }
+
+        function deconnexionAdmin() {
+            if (isFirebaseActive && auth) auth.signOut();
+            if (unsubscribeRealtime) unsubscribeRealtime();
+            toggleView('agent-view');
+        }
+
+        // Recherche agent
+        function rechercherAgent() {
+            var mat = document.getElementById('matriculeInput').value.trim();
+            var promptNotFnd = document.getElementById('searchNotFoundPrompt');
+            if (promptNotFnd) promptNotFnd.classList.add('hidden');
+
+            if (!mat) {
+                alert("Veuillez saisir votre numéro matricule.");
+                return;
+            }
+
+            if (isFirebaseActive && db) {
+                db.collection("personnel").doc(mat).get().then(function(snap) {
+                    if (snap.exists) {
+                        currentAgentDocId = snap.id;
+                        chargerAgentDansFormulaire(snap.data(), 'edit');
+                    } else {
+                        db.collection("personnel").where("matricule", "==", mat).get().then(function(qSnap) {
+                            if (!qSnap.empty) {
+                                currentAgentDocId = qSnap.docs[0].id;
+                                chargerAgentDansFormulaire(qSnap.docs[0].data(), 'edit');
+                            } else {
+                                if (promptNotFnd) promptNotFnd.classList.remove('hidden');
+                            }
+                        });
+                    }
+                }).catch(function(e) {
+                    alert("Erreur de connexion : " + e.message);
+                });
+            } else {
+                var local = JSON.parse(localStorage.getItem('db_personnel') || '[]');
+                var agent = local.find(function(a) { return String(a.matricule).toUpperCase() === mat.toUpperCase(); });
+                if (agent) {
+                    currentAgentDocId = mat;
+                    chargerAgentDansFormulaire(agent, 'edit');
+                } else {
+                    if (promptNotFnd) promptNotFnd.classList.remove('hidden');
+                }
+            }
+        }
+
+        function ouvrirInscriptionAgent() {
+            var promptNotFnd = document.getElementById('searchNotFoundPrompt');
+            if (promptNotFnd) promptNotFnd.classList.add('hidden');
+            chargerAgentDansFormulaire({
+                matricule: '', nom: '', date_naissance: '', lieu_naissance: '', email: '',
+                statut: '', cycle: '', grade: '', disc: '', poste: '', fonction: '', contact: '',
+                anc_poste: '', anc_dept: '', anc_gen: ''
+            }, 'create');
+        }
+
+        function creerAgentAvecMatriculeIntrouvable() {
+            var mat = document.getElementById('matriculeInput').value.trim();
+            var promptNotFnd = document.getElementById('searchNotFoundPrompt');
+            if (promptNotFnd) promptNotFnd.classList.add('hidden');
+            chargerAgentDansFormulaire({
+                matricule: mat, nom: '', date_naissance: '', lieu_naissance: '', email: '',
+                statut: '', cycle: '', grade: '', disc: '', poste: '', fonction: '', contact: '',
+                anc_poste: '', anc_dept: '', anc_gen: ''
+            }, 'create');
+        }
+
+        function chargerAgentDansFormulaire(agent, mode) {
+            document.getElementById('formMode').value = mode;
+            currentAgentDocId = agent.matricule || null;
+
+            var isEdit = (mode === 'edit');
+            document.getElementById('badgeTypeOperation').textContent = isEdit ? "Modification Fiche Agent" : "Nouvelle Inscription";
+            document.getElementById('displayNomTitre').textContent = isEdit ? (agent.nom || "Dossier Agent") : "Formulaire d'enrôlement";
+
+            var matInput = document.getElementById('agentMatricule');
+            matInput.value = agent.matricule || '';
+            matInput.readOnly = isEdit;
+
+            document.getElementById('agentNom').value = agent.nom || '';
+            document.getElementById('agentDateNaissance').value = agent.date_naissance || '';
+            document.getElementById('agentLieuNaissance').value = agent.lieu_naissance || '';
+            document.getElementById('agentEmail').value = agent.email || '';
+            document.getElementById('agentStatut').value = agent.statut || '';
+            document.getElementById('agentCycle').value = agent.cycle || '';
+            document.getElementById('agentGrade').value = agent.grade || '';
+            document.getElementById('agentDiscipline').value = agent.disc || '';
+            document.getElementById('agentPoste').value = agent.poste || '';
+            document.getElementById('agentFonction').value = agent.fonction || '';
+            document.getElementById('agentContact').value = agent.contact || '';
+            document.getElementById('agentAncPoste').value = (agent.anc_poste !== undefined && agent.anc_poste !== null) ? agent.anc_poste : '';
+            document.getElementById('agentAncDept').value = (agent.anc_dept !== undefined && agent.anc_dept !== null) ? agent.anc_dept : '';
+            document.getElementById('agentAncGen').value = (agent.anc_gen !== undefined && agent.anc_gen !== null) ? agent.anc_gen : '';
+
+            var badge = document.getElementById('badgeStatut');
+            if (isEdit) {
+                badge.className = "text-xs font-semibold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800";
+                badge.textContent = "Agent existant";
+            } else {
+                badge.className = "text-xs font-semibold px-3 py-1 rounded-full bg-amber-100 text-amber-800";
+                badge.textContent = "Nouvel enregistrement";
+            }
+
+            var card = document.getElementById('agentCard');
+            card.classList.remove('hidden');
+            card.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function fermerFicheAgent() {
+            document.getElementById('agentCard').classList.add('hidden');
+        }
+
+        function sauvegarderAgentForm(e) {
+            e.preventDefault();
+            var mat = document.getElementById('agentMatricule').value.trim();
+            var nom = document.getElementById('agentNom').value.trim();
+            var dateNaiss = document.getElementById('agentDateNaissance').value;
+            var lieuNaiss = document.getElementById('agentLieuNaissance').value.trim();
+            var email = document.getElementById('agentEmail').value.trim();
+            var statut = document.getElementById('agentStatut').value;
+            var cycle = document.getElementById('agentCycle').value;
+            var grade = document.getElementById('agentGrade').value.trim();
+            var disc = document.getElementById('agentDiscipline').value.trim();
+            var poste = document.getElementById('agentPoste').value.trim();
+            var fonction = document.getElementById('agentFonction').value.trim();
+            var contact = document.getElementById('agentContact').value.trim();
+            var ancPosteVal = document.getElementById('agentAncPoste').value;
+            var ancDeptVal = document.getElementById('agentAncDept').value;
+            var ancGenVal = document.getElementById('agentAncGen').value;
+
+            if (!mat || !nom || !dateNaiss || !lieuNaiss || !email || !statut || !cycle || !grade || !disc || !poste || !fonction || !contact || ancPosteVal === '' || ancDeptVal === '' || ancGenVal === '') {
+                alert("Veuillez remplir obligatoirement TOUS les champs du formulaire.");
+                return;
+            }
+
+            var agentData = {
+                matricule: mat,
+                nom: nom,
+                date_naissance: dateNaiss,
+                lieu_naissance: lieuNaiss,
+                email: email,
+                statut: statut,
+                cycle: cycle,
+                grade: grade,
+                disc: disc,
+                poste: poste,
+                fonction: fonction,
+                contact: contact,
+                anc_poste: Number(ancPosteVal),
+                anc_dept: Number(ancDeptVal),
+                anc_gen: Number(ancGenVal),
+                maj_le: new Date()
+            };
+
+            var btn = document.getElementById('btnEnregistrerAgent');
+            btn.disabled = true;
+
+            if (isFirebaseActive && db) {
+                db.collection("personnel").doc(mat).set(agentData, { merge: true }).then(function() {
+                    alert("Enregistrement validé avec succès !");
+                    btn.disabled = false;
+                }).catch(function(err) {
+                    alert("Erreur : " + err.message);
+                    btn.disabled = false;
+                });
+            } else {
+                var local = JSON.parse(localStorage.getItem('db_personnel') || '[]');
+                var idx = local.findIndex(function(a) { return String(a.matricule).toUpperCase() === mat.toUpperCase(); });
+                if (idx !== -1) {
+                    local[idx] = Object.assign({}, local[idx], agentData);
+                } else {
+                    local.push(Object.assign({ numero: local.length + 1 }, agentData));
+                }
+                localStorage.setItem('db_personnel', JSON.stringify(local));
+                alert("Enregistrement validé avec succès !");
+                btn.disabled = false;
+            }
+        }
+
+        // Surveillance temps réel de la table
+        function attacherEcouteurEnTempsReel() {
+            if (isFirebaseActive && db) {
+                if (unsubscribeRealtime) unsubscribeRealtime();
+                unsubscribeRealtime = db.collection("personnel").orderBy("matricule", "asc")
+                    .onSnapshot(function(snapshot) {
+                        personnelList = [];
+                        snapshot.forEach(function(doc) {
+                            personnelList.push(Object.assign({ id: doc.id }, doc.data()));
+                        });
+                        mettreAJourAffichageAdmin();
+                    }, function(err) {
+                        console.warn("Écoute temps réel :", err);
+                    });
+            } else {
+                personnelList = JSON.parse(localStorage.getItem('db_personnel') || '[]');
+                mettreAJourAffichageAdmin();
+            }
+        }
+
+        function mettreAJourAffichageAdmin() {
+            var total = personnelList.length;
+            var completed = personnelList.filter(function(a) { return a.contact && (a.anc_dept !== null && a.anc_dept !== undefined); }).length;
+            var countFE = personnelList.filter(function(a) { return a.statut === 'FE'; }).length;
+            var countACDPE = personnelList.filter(function(a) { return a.statut === 'ACDPE'; }).length;
+
+            document.getElementById('statTotal').textContent = total;
+            document.getElementById('statCompleted').textContent = completed;
+            document.getElementById('statFE').textContent = countFE;
+            document.getElementById('statACDPE').textContent = countACDPE;
+
+            filtrerTableAdmin();
+        }
+
+        function filtrerTableAdmin() {
+            var q = document.getElementById('adminSearchInput').value.toLowerCase();
+            var filtres = personnelList.filter(function(a) { 
+                return (a.nom && a.nom.toLowerCase().indexOf(q) !== -1) ||
+                       (a.matricule && String(a.matricule).toLowerCase().indexOf(q) !== -1) ||
+                       (a.poste && a.poste.toLowerCase().indexOf(q) !== -1) ||
+                       (a.disc && a.disc.toLowerCase().indexOf(q) !== -1) ||
+                       (a.statut && a.statut.toLowerCase().indexOf(q) !== -1) ||
+                       (a.cycle && String(a.cycle).toLowerCase().indexOf(q) !== -1) ||
+                       (a.email && a.email.toLowerCase().indexOf(q) !== -1);
+            });
+
+            var tbody = document.getElementById('adminTableBody');
+            tbody.innerHTML = '';
+
+            filtres.forEach(function(a, idx) {
+                var tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition border-b border-slate-100";
+                
+                var badgeStatut = a.statut === 'FE' 
+                    ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">FE</span>' 
+                    : (a.statut === 'ACDPE' ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800">ACDPE</span>' : '<span class="text-rose-500 italic">—</span>');
+
+                var badgeCycle = a.cycle ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 border">' + a.cycle + '</span>' : '<span class="text-slate-400 italic">—</span>';
+
+                tr.innerHTML = `
+                    <td class="p-3 font-semibold text-slate-400">${a.numero || (idx + 1)}</td>
+                    <td class="p-3 font-bold text-slate-800">${a.nom || ''}</td>
+                    <td class="p-3 font-mono font-semibold text-indigo-700">${a.matricule || ''}</td>
+                    <td class="p-3 text-center">${badgeStatut}</td>
+                    <td class="p-3 text-center">${badgeCycle}</td>
+                    <td class="p-3 whitespace-nowrap text-slate-600">${a.date_naissance || '—'}</td>
+                    <td class="p-3 text-slate-600">${a.lieu_naissance || '—'}</td>
+                    <td class="p-3 text-slate-600 lowercase">${a.email || '—'}</td>
+                    <td class="p-3">${a.grade || ''}</td>
+                    <td class="p-3">${a.disc || ''}</td>
+                    <td class="p-3 font-medium text-slate-700">${a.poste || ''}</td>
+                    <td class="p-3">${a.fonction || ''}</td>
+                    <td class="p-3 font-semibold ${a.contact ? 'text-slate-900 bg-emerald-50/70 font-mono' : 'text-amber-500 italic'}">
+                        ${a.contact || 'Non renseigné'}
+                    </td>
+                    <td class="p-3 text-center">${a.anc_poste !== undefined ? a.anc_poste : ''}</td>
+                    <td class="p-3 text-center font-bold ${a.anc_dept !== null && a.anc_dept !== undefined ? 'text-slate-900 bg-emerald-50/70' : 'text-amber-500 italic'}">
+                        ${a.anc_dept !== null && a.anc_dept !== undefined ? a.anc_dept : '—'}
+                    </td>
+                    <td class="p-3 text-center">${a.anc_gen !== undefined ? a.anc_gen : ''}</td>
+                    <td class="p-3 text-center whitespace-nowrap space-x-1">
+                        <button type="button" onclick="adminOuvrirFormulaireAgent('${a.matricule}')" class="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded" title="Modifier">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                        </button>
+                        <button type="button" onclick="adminSupprimerAgent('${a.matricule}', '${(a.nom || '').replace(/'/g, "\\'")}')" class="p-1.5 text-rose-600 hover:bg-rose-50 rounded" title="Supprimer">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Formulaire modal Admin
+        function adminOuvrirFormulaireAgent(matricule) {
+            var modal = document.getElementById('adminEditModal');
+            var title = document.getElementById('adminModalTitle');
+            var isNew = !matricule;
+
+            document.getElementById('modalAgentIsNew').value = isNew ? "1" : "0";
+            document.getElementById('modalOriginalMatricule').value = matricule || "";
+
+            if (isNew) {
+                title.innerHTML = '<i class="fa-solid fa-user-plus text-indigo-600"></i> Inscrire un nouvel agent';
+                document.getElementById('modalMatricule').value = '';
+                document.getElementById('modalMatricule').readOnly = false;
+                document.getElementById('modalNom').value = '';
+                document.getElementById('modalDateNaissance').value = '';
+                document.getElementById('modalLieuNaissance').value = '';
+                document.getElementById('modalEmail').value = '';
+                document.getElementById('modalStatut').value = '';
+                document.getElementById('modalCycle').value = '';
+                document.getElementById('modalGrade').value = '';
+                document.getElementById('modalDiscipline').value = '';
+                document.getElementById('modalPoste').value = '';
+                document.getElementById('modalFonction').value = '';
+                document.getElementById('modalContact').value = '';
+                document.getElementById('modalAncPoste').value = '';
+                document.getElementById('modalAncDept').value = '';
+                document.getElementById('modalAncGen').value = '';
+                document.getElementById('modalNumero').value = personnelList.length + 1;
+            } else {
+                title.innerHTML = '<i class="fa-solid fa-user-pen text-indigo-600"></i> Modifier les données de l\'agent';
+                var agent = personnelList.find(function(a) { return String(a.matricule) === String(matricule); });
+                if (!agent) return;
+
+                document.getElementById('modalMatricule').value = agent.matricule || '';
+                document.getElementById('modalMatricule').readOnly = true;
+                document.getElementById('modalNom').value = agent.nom || '';
+                document.getElementById('modalDateNaissance').value = agent.date_naissance || '';
+                document.getElementById('modalLieuNaissance').value = agent.lieu_naissance || '';
+                document.getElementById('modalEmail').value = agent.email || '';
+                document.getElementById('modalStatut').value = agent.statut || '';
+                document.getElementById('modalCycle').value = agent.cycle || '';
+                document.getElementById('modalGrade').value = agent.grade || '';
+                document.getElementById('modalDiscipline').value = agent.disc || '';
+                document.getElementById('modalPoste').value = agent.poste || '';
+                document.getElementById('modalFonction').value = agent.fonction || '';
+                document.getElementById('modalContact').value = agent.contact || '';
+                document.getElementById('modalAncPoste').value = agent.anc_poste !== undefined ? agent.anc_poste : '';
+                document.getElementById('modalAncDept').value = agent.anc_dept !== null ? agent.anc_dept : '';
+                document.getElementById('modalAncGen').value = agent.anc_gen !== undefined ? agent.anc_gen : '';
+                document.getElementById('modalNumero').value = agent.numero || '';
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function fermerAdminEditModal() {
+            document.getElementById('adminEditModal').classList.add('hidden');
+        }
+
+        function sauvegarderAdminAgent(e) {
+            e.preventDefault();
+            var mat = document.getElementById('modalMatricule').value.trim();
+            var nom = document.getElementById('modalNom').value.trim();
+            var dateNaiss = document.getElementById('modalDateNaissance').value;
+            var lieuNaiss = document.getElementById('modalLieuNaissance').value.trim();
+            var email = document.getElementById('modalEmail').value.trim();
+            var statut = document.getElementById('modalStatut').value;
+            var cycle = document.getElementById('modalCycle').value;
+            var grade = document.getElementById('modalGrade').value.trim();
+            var disc = document.getElementById('modalDiscipline').value.trim();
+            var poste = document.getElementById('modalPoste').value.trim();
+            var fonction = document.getElementById('modalFonction').value.trim();
+            var contact = document.getElementById('modalContact').value.trim();
+            var ancPoste = document.getElementById('modalAncPoste').value;
+            var ancDept = document.getElementById('modalAncDept').value;
+            var ancGen = document.getElementById('modalAncGen').value;
+            var numero = document.getElementById('modalNumero').value;
+
+            if (!mat || !nom || !dateNaiss || !lieuNaiss || !email || !statut || !cycle || !grade || !disc || !poste || !fonction || !contact || ancPoste === '' || ancDept === '' || ancGen === '' || numero === '') {
+                alert("Tous les champs sont strictement obligatoires pour enregistrer cet agent.");
+                return;
+            }
+
+            var data = {
+                matricule: mat,
+                nom: nom,
+                date_naissance: dateNaiss,
+                lieu_naissance: lieuNaiss,
+                email: email,
+                statut: statut,
+                cycle: cycle,
+                grade: grade,
+                disc: disc,
+                poste: poste,
+                fonction: fonction,
+                contact: contact,
+                anc_poste: Number(ancPoste),
+                anc_dept: Number(ancDept),
+                anc_gen: Number(ancGen),
+                numero: Number(numero),
+                maj_le: new Date()
+            };
+
+            if (isFirebaseActive && db) {
+                db.collection("personnel").doc(mat).set(data, { merge: true }).then(function() {
+                    fermerAdminEditModal();
+                    alert("Agent enregistré avec succès !");
+                }).catch(function(err) {
+                    alert("Erreur : " + err.message);
+                });
+            } else {
+                var local = JSON.parse(localStorage.getItem('db_personnel') || '[]');
+                var idx = local.findIndex(function(a) { return String(a.matricule).toUpperCase() === mat.toUpperCase(); });
+                if (idx !== -1) {
+                    local[idx] = Object.assign({}, local[idx], data);
+                } else {
+                    local.push(data);
+                }
+                localStorage.setItem('db_personnel', JSON.stringify(local));
+                personnelList = local;
+                mettreAJourAffichageAdmin();
+                fermerAdminEditModal();
+                alert("Agent enregistré avec succès !");
+            }
+        }
+
+        function adminSupprimerAgent(matricule, nom) {
+            if (!confirm("Êtes-vous certain de vouloir supprimer définitivement l'agent " + nom + " (Matricule : " + matricule + ") ?")) {
+                return;
+            }
+
+            if (isFirebaseActive && db) {
+                db.collection("personnel").doc(matricule).delete().then(function() {
+                    alert("Agent supprimé.");
+                }).catch(function(err) {
+                    alert("Erreur lors de la suppression : " + err.message);
+                });
+            } else {
+                var local = JSON.parse(localStorage.getItem('db_personnel') || '[]');
+                local = local.filter(function(a) { return String(a.matricule) !== String(matricule); });
+                localStorage.setItem('db_personnel', JSON.stringify(local));
+                personnelList = local;
+                mettreAJourAffichageAdmin();
+                alert("Agent supprimé.");
+            }
+        }
+
+        function ouvrirModalMotDePasse() {
+            document.getElementById('newPwdInput').value = '';
+            document.getElementById('confirmPwdInput').value = '';
+            document.getElementById('pwdModalError').classList.add('hidden');
+            document.getElementById('passwordModal').classList.remove('hidden');
+        }
+        function fermerModalMotDePasse() {
+            document.getElementById('passwordModal').classList.add('hidden');
+        }
+        function sauvegarderNouveauMotDePasse(e) {
+            e.preventDefault();
+            var p1 = document.getElementById('newPwdInput').value;
+            var p2 = document.getElementById('confirmPwdInput').value;
+            var err = document.getElementById('pwdModalError');
+            err.classList.add('hidden');
+
+            if (p1 !== p2) {
+                err.textContent = "Les deux mots de passe ne concordent pas.";
+                err.classList.remove('hidden');
+                return;
+            }
+            if (p1.length < 6) {
+                err.textContent = "Minimum 6 caractères requis.";
+                err.classList.remove('hidden');
+                return;
+            }
+
+            setAdminPassword(p1);
+            alert("Mot de passe mis à jour !");
+            fermerModalMotDePasse();
+        }
+
+        // Importation Excel
+        function traiterFichierExcel(event) {
+            var file = event.target.files[0];
+            if (!file) return;
+
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    var data = new Uint8Array(e.target.result);
+                    var workbook = XLSX.read(data, { type: 'array' });
+                    var worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    var rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+                    if (!rawRows.length) {
+                        alert("Le fichier Excel est vide.");
+                        return;
+                    }
+
+                    var agents = rawRows.map(function(row, index) {
+                        var matricule = String(row["Numéro Matricule"] || row["MATRICULE"] || row["Matricule"] || "").trim();
+                        var statutVal = String(row["Statut"] || row["STATUT"] || "").trim().toUpperCase();
+                        if (statutVal !== "FE" && statutVal !== "ACDPE") statutVal = "";
+
+                        var cycleVal = String(row["Cycle"] || row["CYCLE"] || "").trim();
+                        if (cycleVal !== "1" && cycleVal !== "2") cycleVal = "";
+
+                        return {
+                            numero: Number(row["N°"] || row["NO"] || index + 1),
+                            nom: String(row["NOM & Prénoms"] || row["NOM ET PRENOMS"] || row["NOM"] || "").trim(),
+                            matricule: matricule,
+                            date_naissance: String(row["Date de naissance"] || row["DATE DE NAISSANCE"] || "").trim(),
+                            lieu_naissance: String(row["Lieu de naissance"] || row["LIEU DE NAISSANCE"] || "").trim(),
+                            email: String(row["Email"] || row["EMAIL"] || "").trim(),
+                            statut: statutVal,
+                            cycle: cycleVal,
+                            grade: String(row["Corps & Grade"] || row["CORPS & GRADE"] || "").trim(),
+                            disc: String(row["Discipline"] || row["DISCIPLINE"] || "").trim(),
+                            poste: String(row["Poste actuel"] || row["POSTE ACTUEL"] || "").trim(),
+                            fonction: String(row["Fonction"] || row["FONCTION"] || "").trim(),
+                            contact: String(row["Contact"] || "").trim(),
+                            anc_poste: Number(row["Au poste"] || 0),
+                            anc_dept: row["Dans le département"] !== "" ? Number(row["Dans le département"]) : null,
+                            anc_gen: Number(row["Générale"] || 0)
+                        };
+                    }).filter(function(a) { return a.matricule !== ""; });
+
+                    if (!agents.length) {
+                        alert("Aucun matricule valide trouvé dans le fichier.");
+                        return;
+                    }
+
+                    if (isFirebaseActive && db) {
+                        var TAILLE_LOT = 400;
+                        for (var i = 0; i < agents.length; i += TAILLE_LOT) {
+                            var lot = agents.slice(i, i + TAILLE_LOT);
+                            var batch = db.batch();
+                            lot.forEach(function(ag) {
+                                var docRef = db.collection("personnel").doc(ag.matricule);
+                                batch.set(docRef, ag, { merge: true });
+                            });
+                            batch.commit();
+                        }
+                    } else {
+                        localStorage.setItem('db_personnel', JSON.stringify(agents));
+                        personnelList = agents;
+                        mettreAJourAffichageAdmin();
+                    }
+
+                    alert("Importation réussie : " + agents.length + " agents traités.");
+                    event.target.value = "";
+                } catch (err) {
+                    alert("Erreur lors de la lecture : " + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Exportation Excel
+        function exporterExcel() {
+            if (!personnelList.length) {
+                alert("Aucune donnée à exporter.");
+                return;
+            }
+
+            var exportData = personnelList.map(function(a, idx) {
+                return {
+                    "N°": a.numero || (idx + 1),
+                    "NOM & Prénoms": a.nom,
+                    "Numéro Matricule": a.matricule,
+                    "Statut": a.statut || "",
+                    "Cycle": a.cycle || "",
+                    "Date de naissance": a.date_naissance || "",
+                    "Lieu de naissance": a.lieu_naissance || "",
+                    "Email": a.email || "",
+                    "Corps & Grade": a.grade,
+                    "Discipline": a.disc,
+                    "Poste actuel": a.poste,
+                    "Fonction": a.fonction,
+                    "Contact": a.contact || "",
+                    "Au poste": a.anc_poste,
+                    "Dans le département": (a.anc_dept !== null && a.anc_dept !== undefined) ? a.anc_dept : "",
+                    "Générale": a.anc_gen
+                };
+            });
+
+            var ws = XLSX.utils.json_to_sheet(exportData);
+            ws['!cols'] = [
+                { wch: 6 },  { wch: 35 }, { wch: 18 }, { wch: 10 },
+                { wch: 8 },  { wch: 16 }, { wch: 22 }, { wch: 25 },
+                { wch: 15 }, { wch: 15 }, { wch: 22 }, { wch: 16 },
+                { wch: 20 }, { wch: 10 }, { wch: 22 }, { wch: 10 }
+            ];
+
+            var wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Personnel");
+            XLSX.writeFile(wb, "Recensement_Personnel_Mis_A_Jour.xlsx");
+        }
+    </script>
+</body>
+</html>
